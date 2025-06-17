@@ -3,38 +3,42 @@
 <head>
   <title>OSINT Launcher</title>
   <style>
-    body { font-family: sans-serif; padding: 20px; }
-    textarea { width: 100%; height: 120px; }
-    .options { margin-top: 10px; }
-    .console { margin-top: 20px; background: #111; color: #0f0; padding: 10px; font-family: monospace; height: 200px; overflow-y: scroll; }
+    body { font-family: sans-serif; margin: 20px; }
+    textarea { width: 100%; height: 100px; margin-bottom: 10px; }
+    input[type="checkbox"] { margin-right: 5px; }
+    button { padding: 10px 20px; }
+    .log { white-space: pre-wrap; background: #f4f4f4; padding: 10px; border-radius: 4px; margin-top: 10px; max-height: 300px; overflow-y: auto; }
   </style>
 </head>
 <body>
-  <h2>🕵️ OSINT Launcher</h2>
-  <textarea id="urls" placeholder="Enter URLs here (one per line)"></textarea>
-  <div class="options">
-    <input type="checkbox" id="screenshot"> Screenshot
-    <input type="checkbox" id="html"> HTML Dump
-    <input type="checkbox" id="verbose"> Verbose
-  </div>
-  <button onclick="runOSINT()">Run OSINT</button>
-  <div class="console" id="consoleOutput"></div>
+  <h1>OSINT Collection Tool</h1>
+  <label>Enter profile URLs (one per line):</label>
+  <textarea id="urls"></textarea>
+
+  <label><input type="checkbox" id="htmlDump"> Save HTML Dump</label>
+  <label><input type="checkbox" id="screenshot"> Take Screenshot</label>
+  <label><input type="checkbox" id="pdf"> Generate PDF Report</label>
+  <br><br>
+  <button onclick="runScan()">Run OSINT</button>
+
+  <div class="log" id="logOutput">Awaiting input...</div>
+
   <script>
-    const { ipcRenderer } = require('electron');
+    async function runScan() {
+      const urls = document.getElementById('urls').value.split('\n').map(u => u.trim()).filter(Boolean);
+      const html = document.getElementById('htmlDump').checked;
+      const ss = document.getElementById('screenshot').checked;
+      const pdf = document.getElementById('pdf').checked;
 
-    function runOSINT() {
-      const urls = document.getElementById('urls').value.split('\n').filter(x => x.trim());
-      const flags = [];
-      if (document.getElementById('screenshot').checked) flags.push('--screenshot');
-      if (document.getElementById('html').checked) flags.push('--html');
-      if (document.getElementById('verbose').checked) flags.push('--verbose');
+      const response = await fetch('/run', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ urls, html, ss, pdf })
+      });
 
-      ipcRenderer.send('run-osint', { urls, flags });
+      const result = await response.text();
+      document.getElementById('logOutput').innerText = result;
     }
-
-    ipcRenderer.on('console-log', (event, message) => {
-      document.getElementById('consoleOutput').innerText += message + '\n';
-    });
   </script>
 </body>
 </html>

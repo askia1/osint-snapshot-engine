@@ -1,32 +1,37 @@
+// src/process-json.js
+
 const fs = require('fs');
-const compromise = require('compromise');
+const path = require('path');
 const chrono = require('chrono-node');
+const compromise = require('compromise');
 const { parsePhoneNumberFromString } = require('libphonenumber-js');
 
-const inputFile = process.argv[2];
-if (!inputFile || !fs.existsSync(inputFile)) {
-  console.error("❌ Usage: node process-json.js <input.json>");
+const args = process.argv.slice(2);
+const isBatch = args.includes('--batch');
+const inputPath = args.find(a => !a.startsWith('--')) || '';
+
+if (!inputPath) {
+  console.error(`\n❌ No input path provided.
+Usage:
+  node src/process-json.js <file|folder> [--batch]
+`);
   process.exit(1);
 }
 
-const raw = JSON.parse(fs.readFileSync(inputFile, 'utf-8'));
-const text = raw.content || "";
-
 function extractEmails(text) {
-  return (text.match(/[\w.-]+@[\w.-]+\.[a-zA-Z]{2,}/g) || [])
-    .filter((v, i, a) => a.indexOf(v) === i);
+  return (text.match(/[\w.-]+@[\w.-]+\.[a-zA-Z]{2,}/g) || []).filter((v, i, a) => a.indexOf(v) === i);
 }
 
 function extractPhones(text) {
-  const phones = [];
-  const match = text.match(/[+()\d\s.-]{7,}/g) || [];
-  match.forEach(m => {
+  const matches = text.match(/[+()\d\s.-]{7,}/g) || [];
+  const valid = [];
+  for (const raw of matches) {
     try {
-      const phone = parsePhoneNumberFromString(m);
-      if (phone && phone.isValid()) phones.push(phone.number);
+      const phone = parsePhoneNumberFromString(raw);
+      if (phone?.isValid()) valid.push(phone.number);
     } catch {}
-  });
-  return [...new Set(phones)];
+  }
+  return [...new Set(valid)];
 }
 
 function extractEntities(text) {
@@ -39,13 +44,50 @@ function extractEntities(text) {
   };
 }
 
-const enriched = {
-  ...raw,
-  emails: extractEmails(text),
-  phones: extractPhones(text),
-  entities: extractEntities(text)
-};
+function processFile(filepath) {
+  const raw = JSON.parse(fs.readFileSync(filepath, 'utf-8'));
 
-const taggedPath = inputFile.replace(/\.json$/, '_tagged.json');
-fs.writeFileSync(taggedPath, JSON.stringify(enriched, null, 2));
-console.log(`✅ Enriched output saved to: ${taggedPath}`);
+  // Flatten to combined string for enrichment
+  let combined = '';
+  ['about', 'experiences', 'education', 'skills'].forEach(k => {
+    const val = raw[k];
+    if (Array.isArray(val)) combined += val.join('\n') + '\n';
+    else if (typeof val === 'string') combined += val + '\n';
+  });
+
+  // Clean output
+  const cleaned = {
+    name: raw.name,
+    headline: raw.headline,
+    location: raw.location,
+    about: raw.about,
+    experiences: raw.experiences,
+    education: raw.education,
+    skills: raw.skills
+  };
+
+  const enriched = {
+    ...cleaned,
+    emails: extractEmails(combined),
+    phoneNumbers: extractPhones(combined),
+    entities: extractEntities(combined)
+  };
+
+  const outBase = filepath.replace(/\.json$/, '');
+  fs.writeFileSync(`${outBase}_clean.json`, JSON.stringify(cleaned, null, 2));
+  fs.writeFileSync(`${outBase}_tagged.json`, JSON.stringify(enriched, null, 2));
+
+  console.log(`✅ Processed: ${path.basename(filepath)}`);
+}
+
+if (isBatch) {
+  const files = fs.readdirSync(inputPath)
+    .filter(f => f.endsWith('.json') && !f.includes('_tagged') && !f.includes('_clean'))
+    .map(f => path.join(inputPath, f));
+
+  for (const file of files) {
+    processFile(file);
+  }
+} else {
+  processFile(inputPath);
+}

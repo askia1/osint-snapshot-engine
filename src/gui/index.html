@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>OSINT Launcher</title>
+  <style>
+    body { font-family: sans-serif; padding: 20px; }
+    textarea { width: 100%; height: 120px; }
+    .options { margin-top: 10px; }
+    .console { margin-top: 20px; background: #111; color: #0f0; padding: 10px; font-family: monospace; height: 200px; overflow-y: scroll; }
+  </style>
+</head>
+<body>
+  <h2>🕵️ OSINT Launcher</h2>
+  <textarea id="urls" placeholder="Enter URLs here (one per line)"></textarea>
+  <div class="options">
+    <input type="checkbox" id="screenshot"> Screenshot
+    <input type="checkbox" id="html"> HTML Dump
+    <input type="checkbox" id="verbose"> Verbose
+  </div>
+  <button onclick="runOSINT()">Run OSINT</button>
+  <div class="console" id="consoleOutput"></div>
+  <script>
+    const { ipcRenderer } = require('electron');
+
+    function runOSINT() {
+      const urls = document.getElementById('urls').value.split('\n').filter(x => x.trim());
+      const flags = [];
+      if (document.getElementById('screenshot').checked) flags.push('--screenshot');
+      if (document.getElementById('html').checked) flags.push('--html');
+      if (document.getElementById('verbose').checked) flags.push('--verbose');
+
+      ipcRenderer.send('run-osint', { urls, flags });
+    }
+
+    ipcRenderer.on('console-log', (event, message) => {
+      document.getElementById('consoleOutput').innerText += message + '\n';
+    });
+  </script>
+</body>
+</html>

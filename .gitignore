@@ -1,0 +1,15 @@
+# Node
+node_modules/
+.env
+npm-debug.log
+
+# Dumps / Results
+outputs/
+*.pdf
+*.html
+*.json
+*.png
+
+# OSINT session junk
+*.log
+cookies.json
